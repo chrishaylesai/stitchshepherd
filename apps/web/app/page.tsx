@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
@@ -18,12 +18,12 @@ export default function HomePage() {
               StitchHarbor is being built for fast canvas editing, public pattern sharing, and PDF symbol chart export.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link href="/login">Sign in with email</Link>
-              </Button>
-              <Button asChild variant="outline" size="lg">
-                <Link href="/dashboard">Open dashboard</Link>
-              </Button>
+              <Link className={buttonVariants({ size: "lg" })} href="/login">
+                Sign in with email
+              </Link>
+              <Link className={buttonVariants({ size: "lg", variant: "outline" })} href="/dashboard">
+                Open dashboard
+              </Link>
             </div>
           </div>
           <div className="rounded-[2rem] border bg-card/80 p-4 shadow-2xl shadow-primary/10">
