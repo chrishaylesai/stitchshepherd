@@ -1,0 +1,26 @@
+/context
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+/.claude
+node_modules
+
+# Dependencies
+**/node_modules
+
+# Build outputs and caches
+.next
+**/.next
+.turbo
+**/.turbo
+dist
+**/dist
+.pnpm-store
+**/.pnpm-store
+
+# Environment
+.env
+.env*.local
+
+# Logs
+*.log
