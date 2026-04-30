@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { FrameConfig, FrameType } from "@stitchharbor/types";
 
 import { Button } from "@/components/ui/button";
+import { formatInches, inchesToStitches, stitchesToInches, type DimensionUnit } from "@/lib/dimensions";
 import { hslToHex, isHexColor } from "@/lib/editor/color";
 import {
   getPaletteUsage,
@@ -33,6 +34,7 @@ export function EditorPanels() {
 
   const [hexInput, setHexInput] = useState<string>(pattern.palette[activePaletteIndex]?.color ?? "#0f766e");
   const [hsl, setHsl] = useState({ h: 174, s: 47, l: 25 });
+  const [frameUnit, setFrameUnit] = useState<DimensionUnit>("stitches");
   const usage = getPaletteUsage(pattern);
 
   return (
@@ -167,13 +169,25 @@ export function EditorPanels() {
             <option value="rectangle">Rectangle</option>
           </select>
         </label>
-        <FrameParamControls frame={metadata.frame} setFrameParam={setFrameParam} />
+        <FrameParamControls
+          fabricCount={metadata.fabricCount}
+          frame={metadata.frame}
+          setFrameParam={setFrameParam}
+          setUnit={setFrameUnit}
+          unit={frameUnit}
+        />
       </section>
 
       <section className="rounded-3xl border bg-card p-4 shadow-sm">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Stats</p>
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <Metric label="Grid" value={`${metadata.gridWidth}x${metadata.gridHeight}`} />
+          <Metric
+            label="Size"
+            value={`${formatInches(stitchesToInches(metadata.gridWidth, metadata.fabricCount))}x${formatInches(
+              stitchesToInches(metadata.gridHeight, metadata.fabricCount)
+            )} in`}
+          />
           <Metric label="Fabric" value={`${metadata.fabricCount} ct`} />
           <Metric label="Elements" value={String(metadata.stitchCount)} />
           <Metric label="Render" value={lastRenderMs == null ? "n/a" : `${lastRenderMs.toFixed(1)} ms`} />
@@ -187,54 +201,183 @@ export function EditorPanels() {
 }
 
 function FrameParamControls({
+  fabricCount,
   frame,
-  setFrameParam
+  setFrameParam,
+  setUnit,
+  unit
 }: {
+  fabricCount: number;
   frame: FrameConfig;
   setFrameParam: (param: string, value: number) => void;
+  setUnit: (unit: DimensionUnit) => void;
+  unit: DimensionUnit;
 }) {
   if (frame.type === "none") {
     return <p className="mt-3 text-sm text-muted-foreground">Choose a frame shape to preview clipping.</p>;
   }
 
+  const updateDimension = (param: string, value: number) => {
+    setFrameParam(param, unit === "inches" ? inchesToStitches(value, fabricCount) : value);
+  };
+
+  const controls = (
+    <div className="mt-3 inline-flex rounded-md border bg-background p-1">
+      <FrameUnitButton active={unit === "stitches"} onClick={() => setUnit("stitches")}>
+        Stitches
+      </FrameUnitButton>
+      <FrameUnitButton active={unit === "inches"} onClick={() => setUnit("inches")}>
+        Inches
+      </FrameUnitButton>
+    </div>
+  );
+
   if (frame.type === "circle") {
     return (
-      <div className="mt-3 grid grid-cols-1 gap-2">
-        <NumberField label="Radius" value={frame.radius} onChange={(value) => setFrameParam("radius", value)} />
-      </div>
+      <>
+        {controls}
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          <DimensionNumberField
+            fabricCount={fabricCount}
+            label="Radius"
+            unit={unit}
+            value={frame.radius}
+            onChange={(value) => updateDimension("radius", value)}
+          />
+        </div>
+      </>
     );
   }
 
   if (frame.type === "oval") {
     return (
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <NumberField label="Width" value={frame.width} onChange={(value) => setFrameParam("width", value)} />
-        <NumberField label="Height" value={frame.height} onChange={(value) => setFrameParam("height", value)} />
-      </div>
+      <>
+        {controls}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <DimensionNumberField
+            fabricCount={fabricCount}
+            label="Width"
+            unit={unit}
+            value={frame.width}
+            onChange={(value) => updateDimension("width", value)}
+          />
+          <DimensionNumberField
+            fabricCount={fabricCount}
+            label="Height"
+            unit={unit}
+            value={frame.height}
+            onChange={(value) => updateDimension("height", value)}
+          />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <NumberField label="Width" value={frame.width} onChange={(value) => setFrameParam("width", value)} />
-      <NumberField label="Height" value={frame.height} onChange={(value) => setFrameParam("height", value)} />
-      <NumberField label="X" value={frame.x ?? 0} onChange={(value) => setFrameParam("x", value)} />
-      <NumberField label="Y" value={frame.y ?? 0} onChange={(value) => setFrameParam("y", value)} />
-    </div>
+    <>
+      {controls}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <DimensionNumberField
+          fabricCount={fabricCount}
+          label="Width"
+          unit={unit}
+          value={frame.width}
+          onChange={(value) => updateDimension("width", value)}
+        />
+        <DimensionNumberField
+          fabricCount={fabricCount}
+          label="Height"
+          unit={unit}
+          value={frame.height}
+          onChange={(value) => updateDimension("height", value)}
+        />
+        <NumberField label="X" min={0} value={frame.x ?? 0} onChange={(value) => setFrameParam("x", value)} />
+        <NumberField label="Y" min={0} value={frame.y ?? 0} onChange={(value) => setFrameParam("y", value)} />
+      </div>
+    </>
   );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function FrameUnitButton({
+  active,
+  children,
+  onClick
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`h-7 rounded px-2 text-xs font-medium ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function DimensionNumberField({
+  fabricCount,
+  label,
+  onChange,
+  unit,
+  value
+}: {
+  fabricCount: number;
+  label: string;
+  onChange: (value: number) => void;
+  unit: DimensionUnit;
+  value: number;
+}) {
+  const displayValue = unit === "inches" ? Number(stitchesToInches(value, fabricCount).toFixed(2)) : Math.round(value);
+
+  return (
+    <NumberField
+      label={label}
+      min={unit === "inches" ? 0.1 : 1}
+      step={unit === "inches" ? 0.1 : 1}
+      suffix={unit === "inches" ? "in" : "st"}
+      value={displayValue}
+      onChange={onChange}
+    />
+  );
+}
+
+function NumberField({
+  label,
+  min = 1,
+  onChange,
+  step = 1,
+  suffix,
+  value
+}: {
+  label: string;
+  min?: number;
+  onChange: (value: number) => void;
+  step?: number;
+  suffix?: string;
+  value: number;
+}) {
   return (
     <label className="space-y-1 text-xs">
       <span className="font-medium text-muted-foreground">{label}</span>
-      <input
-        className="h-9 w-full rounded-md border bg-background px-2 outline-none ring-ring focus:ring-2"
-        min={1}
-        type="number"
-        value={Math.round(value)}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
+      <div className="relative">
+        <input
+          className={`h-9 w-full rounded-md border bg-background px-2 outline-none ring-ring focus:ring-2 ${suffix ? "pr-9" : ""}`}
+          min={min}
+          step={step}
+          type="number"
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        {suffix ? (
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[0.68rem] text-muted-foreground">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
     </label>
   );
 }

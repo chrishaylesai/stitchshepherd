@@ -6,7 +6,9 @@ import { createCaller } from "@stitchharbor/api";
 import type { FrameConfig, FrameType } from "@stitchharbor/types";
 
 import { auth, signOut } from "@/lib/auth";
+import { NewPatternDialog } from "@/components/dashboard/NewPatternDialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { clampWholeNumber, inchesToStitches, type DimensionUnit } from "@/lib/dimensions";
 
 async function createPatternAction(formData: FormData) {
   "use server";
@@ -17,9 +19,16 @@ async function createPatternAction(formData: FormData) {
     redirect("/login");
   }
 
-  const gridWidth = readInteger(formData, "gridWidth", 80);
-  const gridHeight = readInteger(formData, "gridHeight", 60);
-  const fabricCount = readInteger(formData, "fabricCount", 14);
+  const fabricCount = clampWholeNumber(readInteger(formData, "fabricCount", 14), 6, 40);
+  const unit = readDimensionUnit(formData.get("dimensionUnit"));
+  const gridWidth =
+    unit === "inches"
+      ? clampWholeNumber(inchesToStitches(readNumber(formData, "inchWidth", 80 / fabricCount), fabricCount), 1, 1000)
+      : clampWholeNumber(readInteger(formData, "gridWidth", 80), 1, 1000);
+  const gridHeight =
+    unit === "inches"
+      ? clampWholeNumber(inchesToStitches(readNumber(formData, "inchHeight", 60 / fabricCount), fabricCount), 1, 1000)
+      : clampWholeNumber(readInteger(formData, "gridHeight", 60), 1, 1000);
   const frameType = readFrameType(formData.get("frameType"));
   const caller = createCaller({ session });
   const created = await caller.patterns.create({
@@ -70,83 +79,22 @@ export default async function DashboardPage() {
           <p className="text-sm font-medium text-muted-foreground">Signed in as {session.user.email}</p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight">Pattern dashboard</h1>
         </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <Button variant="outline" type="submit">
-            Sign out
-          </Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <NewPatternDialog createAction={createPatternAction} />
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/" });
+            }}
+          >
+            <Button variant="outline" type="submit">
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
 
-      <section className="mt-10 border-y py-6">
-        <form action={createPatternAction} className="grid gap-4 lg:grid-cols-[minmax(12rem,1fr)_8rem_8rem_8rem_10rem_auto]">
-          <label className="grid gap-2 text-sm font-medium">
-            Title
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              name="title"
-              placeholder="Untitled Pattern"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Width
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              defaultValue={80}
-              min={1}
-              max={1000}
-              name="gridWidth"
-              type="number"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Height
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              defaultValue={60}
-              min={1}
-              max={1000}
-              name="gridHeight"
-              type="number"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Count
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              defaultValue={14}
-              min={6}
-              max={40}
-              name="fabricCount"
-              type="number"
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Frame
-            <select
-              className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              defaultValue="none"
-              name="frameType"
-            >
-              <option value="none">None</option>
-              <option value="circle">Circle</option>
-              <option value="oval">Oval</option>
-              <option value="rectangle">Rectangle</option>
-            </select>
-          </label>
-          <div className="flex items-end">
-            <Button className="w-full" type="submit">
-              New pattern
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="mt-8">
+      <section className="mt-10">
         <div className="grid gap-3">
           {patternList.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-sm text-muted-foreground">No patterns yet.</div>
@@ -202,6 +150,18 @@ function readInteger(formData: FormData, key: string, fallback: number) {
   if (!Number.isInteger(value)) return fallback;
 
   return value;
+}
+
+function readNumber(formData: FormData, key: string, fallback: number) {
+  const value = Number(formData.get(key));
+
+  if (!Number.isFinite(value)) return fallback;
+
+  return value;
+}
+
+function readDimensionUnit(value: FormDataEntryValue | null): DimensionUnit {
+  return value === "inches" ? "inches" : "stitches";
 }
 
 function readFrameType(value: FormDataEntryValue | null): FrameType {
