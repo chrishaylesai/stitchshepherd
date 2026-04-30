@@ -13,7 +13,9 @@ import {
   useEditorUiStore
 } from "@/stores/editorStore";
 
-export function EditorPanels() {
+const LOCAL_DRAFT_ID = "local-draft";
+
+export function EditorPanels({ currentUserId }: { currentUserId: string }) {
   const pattern = useEditorPatternStore((state) => state.pattern);
   const metadata = useEditorPatternStore((state) => state.metadata);
   const addPaletteColor = useEditorPatternStore((state) => state.addPaletteColor);
@@ -25,6 +27,7 @@ export function EditorPanels() {
   const loadBenchmarkPattern = useEditorPatternStore((state) => state.loadBenchmarkPattern);
   const setFrameType = useEditorPatternStore((state) => state.setFrameType);
   const setFrameParam = useEditorPatternStore((state) => state.setFrameParam);
+  const setPatternVisibility = useEditorPatternStore((state) => state.setPatternVisibility);
 
   const activePaletteIndex = useEditorUiStore((state) => state.activePaletteIndex);
   const selectedCells = useEditorUiStore((state) => state.selectedCells);
@@ -36,9 +39,39 @@ export function EditorPanels() {
   const [hsl, setHsl] = useState({ h: 174, s: 47, l: 25 });
   const [frameUnit, setFrameUnit] = useState<DimensionUnit>("stitches");
   const usage = getPaletteUsage(pattern);
+  const isLocalDraft = metadata.id === LOCAL_DRAFT_ID;
+  const isOwner = metadata.userId === currentUserId;
+  const canEditVisibility = isOwner && !isLocalDraft;
 
   return (
     <aside className="flex flex-col gap-4">
+      <section className="rounded-3xl border bg-card p-4 shadow-sm">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pattern Settings</p>
+        <div className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{metadata.isPublic ? "Public" : "Private"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{getVisibilityNote({ canEditVisibility, isLocalDraft, isOwner })}</p>
+          </div>
+          <button
+            aria-checked={metadata.isPublic}
+            aria-label="Pattern visibility"
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              metadata.isPublic ? "bg-primary" : "bg-muted-foreground/35"
+            } ${canEditVisibility ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+            disabled={!canEditVisibility}
+            onClick={() => setPatternVisibility(!metadata.isPublic)}
+            role="switch"
+            type="button"
+          >
+            <span
+              className={`absolute left-0 top-1 h-5 w-5 rounded-full bg-background shadow transition-transform ${
+                metadata.isPublic ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-3xl border bg-card p-4 shadow-sm">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Color Picker</p>
         <input
@@ -296,6 +329,30 @@ function FrameParamControls({
       </div>
     </>
   );
+}
+
+function getVisibilityNote({
+  canEditVisibility,
+  isLocalDraft,
+  isOwner
+}: {
+  canEditVisibility: boolean;
+  isLocalDraft: boolean;
+  isOwner: boolean;
+}) {
+  if (canEditVisibility) {
+    return "Owner access.";
+  }
+
+  if (isLocalDraft) {
+    return "Local drafts are public by default.";
+  }
+
+  if (!isOwner) {
+    return "Only the owner can change visibility.";
+  }
+
+  return "Visibility cannot be changed here.";
 }
 
 function FrameUnitButton({

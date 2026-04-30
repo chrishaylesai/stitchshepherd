@@ -117,6 +117,9 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 md:justify-end">
+                  <Link className={buttonVariants({ variant: "outline" })} href={`/patterns/${pattern.id}`} prefetch={false}>
+                    View
+                  </Link>
                   <Link className={buttonVariants({ variant: "outline" })} href={`/editor?patternId=${pattern.id}`}>
                     Open
                   </Link>

@@ -17,7 +17,13 @@ export type InitialEditorPattern = {
   content: PatternContent;
 };
 
-export function EditorShell({ initialPattern }: { initialPattern?: InitialEditorPattern | null }) {
+export function EditorShell({
+  currentUserId,
+  initialPattern
+}: {
+  currentUserId: string;
+  initialPattern?: InitialEditorPattern | null;
+}) {
   const loadedPatternId = useRef<string | null>(null);
   const title = useEditorPatternStore((state) => state.metadata.title);
   const autoSave = useAutoSave();
@@ -49,7 +55,7 @@ export function EditorShell({ initialPattern }: { initialPattern?: InitialEditor
         <div className="grid min-h-[calc(100vh-8rem)] gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
           <EditorToolbar />
           <EditorCanvas />
-          <EditorPanels />
+          <EditorPanels currentUserId={currentUserId} />
         </div>
       </div>
     </main>

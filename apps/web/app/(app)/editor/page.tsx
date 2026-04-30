@@ -24,6 +24,12 @@ export default async function EditorPage({ searchParams }: EditorPageProps) {
     redirect("/login");
   }
 
+  const currentUserId = session.user.id;
+
+  if (!currentUserId) {
+    redirect("/login");
+  }
+
   const { patternId } = await searchParams;
   let initialPattern: InitialEditorPattern | null = null;
 
@@ -32,9 +38,9 @@ export default async function EditorPage({ searchParams }: EditorPageProps) {
     initialPattern = await caller.patterns.load({ id: patternId });
   }
 
-  return <EditorShell initialPattern={initialPattern} />;
+  return <EditorShell currentUserId={currentUserId} initialPattern={initialPattern} />;
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

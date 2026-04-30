@@ -246,6 +246,17 @@ export const appRouter = router({
 
       return toPatternPayload(row);
     }),
+    loadOwned: protectedProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
+      const row = await db.query.patterns.findFirst({
+        where: and(eq(patterns.id, input.id), eq(patterns.userId, ctx.userId))
+      });
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pattern not found." });
+      }
+
+      return toPatternPayload(row);
+    }),
     list: protectedProcedure
       .input(
         z

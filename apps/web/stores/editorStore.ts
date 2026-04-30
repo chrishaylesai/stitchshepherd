@@ -44,6 +44,7 @@ export type EditorPatternState = {
   loadBenchmarkPattern: () => void;
   setFrameType: (frameType: FrameType) => void;
   setFrameParam: (param: string, value: number) => void;
+  setPatternVisibility: (isPublic: boolean) => void;
 };
 
 export type EditorUiState = {
@@ -269,6 +270,11 @@ export const useEditorPatternStore = create<EditorPatternState>()(
             ...state.metadata.frame,
             [param]: Math.max(minValue, value)
           } as FrameConfig;
+          state.metadata.updatedAt = new Date();
+        }),
+      setPatternVisibility: (isPublic) =>
+        set((state) => {
+          state.metadata.isPublic = isPublic;
           state.metadata.updatedAt = new Date();
         })
     }),
