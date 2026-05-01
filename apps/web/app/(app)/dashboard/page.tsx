@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { revalidatePath } from "next/cache";
 
 import { createCaller } from "@stitchharbor/api";
@@ -101,9 +102,26 @@ export default async function DashboardPage() {
           ) : (
             patternList.map((pattern) => (
               <article
-                className="grid gap-4 rounded-lg border bg-card p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                className="grid gap-4 rounded-lg border bg-card p-4 shadow-sm md:grid-cols-[128px_minmax(0,1fr)_auto] md:items-center"
                 key={pattern.id}
               >
+                <div className="h-24 w-32 overflow-hidden rounded-md border bg-[#f4ecd9]">
+                  {pattern.thumbnailUrl ? (
+                    <Image
+                      alt={`${pattern.title} thumbnail`}
+                      className="h-full w-full object-cover"
+                      height={96}
+                      loading="lazy"
+                      src={pattern.thumbnailUrl}
+                      unoptimized
+                      width={128}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
+                      No thumbnail
+                    </div>
+                  )}
+                </div>
                 <div className="min-w-0">
                   <h2 className="truncate text-lg font-semibold">{pattern.title}</h2>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

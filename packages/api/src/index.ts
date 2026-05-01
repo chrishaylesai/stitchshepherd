@@ -15,8 +15,11 @@ import { db } from "@stitchharbor/db/client";
 import { patterns } from "@stitchharbor/db/schema";
 import { EMPTY_PATTERN_CONTENT, StitchType, type FrameConfig, type PatternContent } from "@stitchharbor/types";
 
+import { renderPatternThumbnail } from "./thumbnail";
+
 const INLINE_CONTENT_MAX_BYTES = 1_000_000;
 const CONTENT_TYPE_JSON = "application/json";
+const CONTENT_TYPE_PNG = "image/png";
 
 let cachedS3Client: S3Client | null = null;
 
@@ -229,7 +232,26 @@ export const appRouter = router({
           await deletePatternContentFromS3(existing.contentS3Key);
         }
 
-        return toPatternPayload(updated);
+        const thumbnailKey = getPatternThumbnailS3Key(ctx.userId, input.id);
+        const thumbnailUrl = getPatternThumbnailUrl(input.id, updated.updatedAt);
+        const thumbnail = await renderPatternThumbnail(
+          {
+            gridWidth: updated.gridWidth,
+            gridHeight: updated.gridHeight,
+            frame: updated.frameParams
+          },
+          input.content
+        );
+
+        await uploadPatternThumbnailToS3(thumbnailKey, thumbnail);
+
+        const [withThumbnail] = await db
+          .update(patterns)
+          .set({ thumbnailUrl })
+          .where(and(eq(patterns.id, input.id), eq(patterns.userId, ctx.userId)))
+          .returning();
+
+        return toPatternPayload(withThumbnail ?? updated);
       }),
     load: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
       const visibility = ctx.session?.user?.id
@@ -293,6 +315,32 @@ export type AppRouter = typeof appRouter;
 
 export const createCaller = t.createCallerFactory(appRouter);
 
+export async function loadPatternThumbnail(input: { id: string; session: ApiSession }) {
+  const parseResult = z.string().uuid().safeParse(input.id);
+
+  if (!parseResult.success) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Pattern thumbnail not found." });
+  }
+
+  const visibility = input.session?.user?.id
+    ? or(eq(patterns.isPublic, true), eq(patterns.userId, input.session.user.id))
+    : eq(patterns.isPublic, true);
+
+  const row = await db.query.patterns.findFirst({
+    where: and(eq(patterns.id, parseResult.data), visibility)
+  });
+
+  if (!row?.thumbnailUrl) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Pattern thumbnail not found." });
+  }
+
+  return {
+    body: await loadPatternThumbnailFromS3(getPatternThumbnailS3Key(row.userId, row.id)),
+    isPublic: row.isPublic,
+    updatedAt: row.updatedAt
+  };
+}
+
 async function toPatternPayload(row: typeof patterns.$inferSelect) {
   if (row.contentStorage === "s3") {
     if (!row.contentS3Key) {
@@ -341,6 +389,14 @@ function getPatternContentS3Key(userId: string, patternId: string) {
   return `patterns/${userId}/${patternId}/content.json`;
 }
 
+function getPatternThumbnailS3Key(userId: string, patternId: string) {
+  return `patterns/${userId}/${patternId}/thumbnail.png`;
+}
+
+function getPatternThumbnailUrl(patternId: string, updatedAt: Date) {
+  return `/api/patterns/${patternId}/thumbnail?v=${updatedAt.getTime()}`;
+}
+
 function getS3Client() {
   if (cachedS3Client) return cachedS3Client;
 
@@ -376,7 +432,7 @@ function getS3Bucket() {
   if (!bucket) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "S3_BUCKET is required for large pattern content storage."
+      message: "S3_BUCKET is required for pattern asset storage."
     });
   }
 
@@ -395,6 +451,21 @@ async function uploadPatternContentToS3(key: string, serializedContent: string) 
     );
   } catch (error) {
     throwS3StorageError("Failed to upload large pattern content.", error);
+  }
+}
+
+async function uploadPatternThumbnailToS3(key: string, thumbnail: Buffer) {
+  try {
+    await getS3Client().send(
+      new PutObjectCommand({
+        Bucket: getS3Bucket(),
+        Key: key,
+        Body: thumbnail,
+        ContentType: CONTENT_TYPE_PNG
+      })
+    );
+  } catch (error) {
+    throwS3StorageError("Failed to upload pattern thumbnail.", error);
   }
 }
 
@@ -437,6 +508,32 @@ async function loadPatternContentFromS3(key: string) {
     }
 
     throwS3StorageError("Failed to load large pattern content.", error);
+  }
+}
+
+async function loadPatternThumbnailFromS3(key: string) {
+  try {
+    const response = await getS3Client().send(
+      new GetObjectCommand({
+        Bucket: getS3Bucket(),
+        Key: key
+      })
+    );
+
+    const body = await response.Body?.transformToByteArray();
+
+    if (!body) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Stored pattern thumbnail is empty."
+      });
+    }
+
+    return body;
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+
+    throwS3StorageError("Failed to load pattern thumbnail.", error);
   }
 }
 
